@@ -1,5 +1,6 @@
 import requests
 import os
+from dataclasses import dataclass
 from dotenv import load_dotenv
 import datetime
 import psycopg2
@@ -13,11 +14,21 @@ API_KEY = os.getenv("API_KEY", "DEFAULT")
 DATABASE_URL = "postgresql://{}:{}@{}:5433/{}".format(
     DB_USER, DB_PASS, DB_HOST, DB_NAME
 )
-connection = psycopg2.connect(DATABASE_URL)
+conn = psycopg2.connect(DATABASE_URL)
 today = datetime.datetime.now().strftime("%Y-%m-%d")
 prev_date = (datetime.datetime.now() - datetime.timedelta(days=14)).strftime("%Y-%m-%d")
 stock_options = ["IBM", "AAPL"]
-all_records = []
+all_records, res = [], []
+
+
+@dataclass
+class FinancialData:
+    symbol: str
+    date: str
+    open_price: str
+    close_price: str
+    volume: str
+
 
 # Get all data from external API
 for stock in stock_options:
@@ -34,15 +45,17 @@ for stock in stock_options:
             volume = response["Time Series (Daily)"][date]["6. volume"]
             record = [symbol, date, open_price, close_price, volume]
             all_records.append(record)
+            res.append(FinancialData(symbol, date, open_price, close_price, volume))
 
 # Insert into database
-with connection:
-    with connection.cursor() as cursor:
-        sql = "INSERT INTO financial_data (symbol, date, open_price, close_price, volume) VALUES (%s, %s,%s, %s, %s) ON CONFLICT DO NOTHING;"
-        try:
-            cursor.executemany(sql, all_records)
-        except Exception as E:
-            print(E)
-    connection.commit()
-cursor.close()
-connection.close()
+with conn.cursor() as cur:
+    sql = "INSERT INTO financial_data (symbol, date, open_price, close_price, volume) VALUES (%s, %s,%s, %s, %s) ON CONFLICT DO NOTHING;"
+    cur.executemany(sql, all_records)
+
+conn.commit()
+cur.close()
+conn.close()
+
+# Printout output
+for record in res:
+    print(record)
