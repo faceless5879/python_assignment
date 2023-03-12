@@ -5,14 +5,15 @@ import datetime
 import psycopg2
 
 load_dotenv()
-DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASS = os.getenv("DB_PASS", "password")
+DB_HOST = os.getenv("DB_HOST", "localhost")
 API_KEY = os.getenv("API_KEY", "DEFAULT")
-connection = psycopg2.connect(
-    host=DB_HOST, user=DB_USER, password=DB_PASS, database=DB_NAME
+DATABASE_URL = "postgresql://{}:{}@{}:5433/{}".format(
+    DB_USER, DB_PASS, DB_HOST, DB_NAME
 )
+connection = psycopg2.connect(DATABASE_URL)
 today = datetime.datetime.now().strftime("%Y-%m-%d")
 prev_date = (datetime.datetime.now() - datetime.timedelta(days=14)).strftime("%Y-%m-%d")
 stock_options = ["IBM", "AAPL"]
