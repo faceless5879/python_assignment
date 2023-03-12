@@ -1,10 +1,13 @@
 import os
-from dataclasses import dataclass
 from dotenv import load_dotenv
 import psycopg2
-from fastapi import APIRouter, HTTPException
-import datetime
+from fastapi import APIRouter, Depends
 import logging
+from ..dto.ReadFinancialReq import ReadFinancialReq
+from ..dto.ReadStaticReq import ReadStaticReq
+from ..model.FinancialModel import FinancialModel, Pagination
+from ..model.StatisticModel import StatisticModel
+import math
 
 router = APIRouter(
     prefix="/api",
@@ -14,90 +17,88 @@ load_dotenv()
 DB_NAME = os.getenv("DB_NAME", "postgres")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASS = os.getenv("DB_PASS", "password")
-DEFAULT_SYMBOL = "IBM"
 DATABASE_URL = "postgresql://{}:{}@{}:5432/{}".format(
     DB_USER, DB_PASS, "postgres", DB_NAME
 )
 conn = psycopg2.connect(DATABASE_URL)
-def_start_date = (datetime.datetime.now() - datetime.timedelta(days=14)).strftime(
-    "%Y-%m-%d"
-)
-def_end_date = datetime.datetime.now().strftime("%Y-%m-%d")
-
-
-@dataclass
-class FinancialData:
-    symbol: str
-    date: str
-    open_price: str
-    close_price: str
-    volume: str
-
-
-@dataclass
-class StatisticData:
-    start_date: str
-    end_date: str
-    symbol: str
-    average_daily_open_price: float
-    average_daily_close_price: float
-    average_daily_volume: float
 
 
 @router.get("/financial_data")
-def read_financial(
-    start_date: str = def_start_date,
-    end_date: str = def_end_date,
-    symbol: str = DEFAULT_SYMBOL,
-    limit: int = 3,
-    page: int = 5,
-):
-    logging.info(start_date, end_date, symbol, limit, page)
+def read_financial(req: ReadFinancialReq = Depends()):
+    logging.info(req.start_date, req.end_date, req.symbol, req.limit, req.page)
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT * FROM financial_data WHERE symbol = %s LIMIT = %s OFFSET = %s",
-            (symbol, limit, page),
+        sql = """
+        WITH list_financial AS (
+            SELECT *
+            FROM financial_data
+            WHERE symbol = '{}'
+                AND "date" <= '{}'
+                AND "date" >= '{}'
+            ORDER BY "date"
         )
-        data = cur.fetchall()
-        conn.commit()
+        SELECT (
+                SELECT count(*)
+                FROM list_financial
+            ),
+            *
+        FROM list_financial
+        LIMIT {} OFFSET {}
+        """.format(
+            req.symbol, req.end_date, req.start_date, req.limit, req.page * req.limit
+        )
+        cur.execute(sql)
+        rows = cur.fetchall()
+
+        products = []
+        for row in rows:
+            count = row[0]
+            symbol = row[1]
+            date = row[2]
+            open_price = str(row[3])
+            close_price = str(row[4])
+            volume = str(row[5])
+            product = FinancialModel(symbol, date, open_price, close_price, volume)
+            products.append(product)
+
     return {
-        "data": data,
-        "pagination": {"count": 20, "page": 2, "limit": limit, "pages": 7},
-        "info": {"error": ""},
+        "data": products,
+        "pagination": Pagination(
+            count,
+            req.page,
+            req.limit,
+            math.ceil(count / req.limit),
+        ),
     }
 
 
 @router.get("/statistics")
-def read_statistics(
-    start_date: str = def_start_date,
-    end_date: str = def_end_date,
-    symbol: str = DEFAULT_SYMBOL,
-):
-    logging.info(start_date, end_date, symbol)
+def read_statistics(req: ReadStaticReq = Depends()):
+    logging.info(req.start_date, req.end_date, req.symbol)
     with conn.cursor() as cur:
-        cur.execute(
-            "SELECT * FROM financial_data WHERE symbol = %s AND date >= %s AND date <= %s",
-            (symbol, start_date, end_date),
+        sql = "SELECT * FROM financial_data WHERE symbol = '{}' AND date >= '{}' AND date <= '{}'".format(
+            req.symbol, req.start_date, req.end_date
         )
+        cur.execute(sql)
         data = cur.fetchall()
-        conn.commit()
+
+    record_nums = len(data)
+    if record_nums < 1:
+        return {"info": "There is no data matched with input parameters"}
 
     sum_daily_open_price = 0
     sum_daily_close_price = 0
     sum_daily_volume = 0
-    record_nums = len(data)
     for record in data:
         sum_daily_open_price += record[2]
         sum_daily_close_price += record[3]
         sum_daily_volume += record[4]
     return {
-        "data": StatisticData(
-            start_date,
-            end_date,
-            symbol,
+        "data": StatisticModel(
+            req.start_date,
+            req.end_date,
+            req.symbol,
             sum_daily_open_price / record_nums,
             sum_daily_close_price / record_nums,
             sum_daily_volume / record_nums,
-        ),
-        "info": {"error": ""},
+        )
     }
