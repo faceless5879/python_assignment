@@ -6,10 +6,10 @@ import datetime
 import psycopg2
 
 load_dotenv()
-DB_NAME = os.getenv("DB_NAME", "postgres")
+DB_NAME = "postgres"
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASS = os.getenv("DB_PASS", "password")
-DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_HOST = "localhost"
 API_KEY = os.getenv("API_KEY", "DEFAULT")
 DATABASE_URL = "postgresql://{}:{}@{}:5433/{}".format(
     DB_USER, DB_PASS, DB_HOST, DB_NAME

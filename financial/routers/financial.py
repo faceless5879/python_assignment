@@ -14,7 +14,7 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 load_dotenv()
-DB_NAME = os.getenv("DB_NAME", "postgres")
+DB_NAME = "postgres"
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASS = os.getenv("DB_PASS", "password")
 DATABASE_URL = "postgresql://{}:{}@{}:5432/{}".format(
