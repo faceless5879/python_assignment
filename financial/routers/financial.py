@@ -49,7 +49,11 @@ def read_financial(req: ReadFinancialReq = Depends()):
         cur.execute(sql)
         rows = cur.fetchall()
 
-        products = []
+        record_nums = len(rows)
+        if record_nums < 1:
+            return {"info": "There is no data matched with input parameters"}
+
+        financial_records = []
         for row in rows:
             count = row[0]
             symbol = row[1]
@@ -57,11 +61,11 @@ def read_financial(req: ReadFinancialReq = Depends()):
             open_price = str(row[3])
             close_price = str(row[4])
             volume = str(row[5])
-            product = FinancialModel(symbol, date, open_price, close_price, volume)
-            products.append(product)
+            record = FinancialModel(symbol, date, open_price, close_price, volume)
+            financial_records.append(record)
 
     return {
-        "data": products,
+        "data": financial_records,
         "pagination": Pagination(
             count,
             req.page,
@@ -79,16 +83,16 @@ def read_statistics(req: ReadStaticReq = Depends()):
             req.symbol, req.start_date, req.end_date
         )
         cur.execute(sql)
-        data = cur.fetchall()
+        rows = cur.fetchall()
 
-    record_nums = len(data)
+    record_nums = len(rows)
     if record_nums < 1:
         return {"info": "There is no data matched with input parameters"}
 
     sum_daily_open_price = 0
     sum_daily_close_price = 0
     sum_daily_volume = 0
-    for record in data:
+    for record in rows:
         sum_daily_open_price += record[2]
         sum_daily_close_price += record[3]
         sum_daily_volume += record[4]
